@@ -1,6 +1,9 @@
+# -*- coding: utf-8 -*-
 import feedparser
 import requests
 import tweepy
+
+from sawagu.settings import Settings
 
 
 def main():
@@ -9,7 +12,7 @@ def main():
     cache = Cache(settings.CACHE_FILE)
     shortener = Shortener(settings.SHORTENER_URL)
     tweeter = Tweeter(settings.TWITTER_CONSUMER_KEY,
-            settings.TWITTER_CONSUMER_SECRET,
+            settings.TWITTER_CONSUMER_KEY_SECRET,
             settings.TWITTER_ACCESS_TOKEN,
             settings.TWITTER_ACCESS_TOKEN_SECRET)
 
@@ -22,6 +25,7 @@ def main():
 
     new_entries = [x for x in new_feed.entries
             if x.id not in [y.id for y in last_feed.entries]]
+    print "Got new entries:", len(new_entries)
 
     # tweet the oldest entries first
     new_entries.reverse()
@@ -30,7 +34,8 @@ def main():
                 title=entry.title,
                 link=shortener.shorten(entry.feedburner_origlink),
                 tags=[x.term for x in entry.tags])
-        tweeter.send_tweet(unicode(message))
+        print "Want to send message", unicode(message)
+#        tweeter.send_tweet(unicode(message))
 
     cache.save(new_data)
 
@@ -43,7 +48,7 @@ class Shortener(object):
     def shorten(self, url):
         data = {'url': url}
         response = requests.post(self.shortener_url, data=data)
-        short_url = response.content().strip()
+        short_url = response.content.strip()
         return short_url
 
 
@@ -57,14 +62,14 @@ class Message(object):
     def __unicode__(self):
         message = self.link
 
-        if len(self.title + u' ' + message) > 140:
+        if len(self.title + message) + 1 > 140:
             title = self.truncate(self.title, u' ' + message)
             message = title + u' ' + message
         else:
             message = self.title + u' ' + message
 
-        for tag in tags:
-            if len(message + tag + 2) <= 140:
+        for tag in self.tags:
+            if len(message + tag) + 2 <= 140:
                 message += u" #" + tag
 
         return message
@@ -99,18 +104,18 @@ class Cache(object):
 
 class Tweeter(object):
 
-    def __init__(self, consumer_key, consumer_secret,
+    def __init__(self, consumer_key, consumer_key_secret,
             access_token, access_token_secret):
         self.auth = tweepy.OAuthHandler(
-                self.consumer_key, self.consumer_key_secret)
+                consumer_key, consumer_key_secret)
         self.auth.set_access_token(access_token, access_token_secret)
-        self.api = tweepy.API(auth)
+        self.api = tweepy.API(self.auth)
 
     def send_tweet(self, message):
-        try:
-            self.api.update_status(message)
-        except tweepy.TweepError:
-            pass
+        #try:
+        self.api.update_status(message)
+        #except tweepy.TweepError:
+        #    pass
 
 
 if __name__ == '__main__':
