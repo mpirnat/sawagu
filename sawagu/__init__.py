@@ -112,10 +112,12 @@ class Tweeter(object):
 
     def send_tweet(self, message):
         print "Sending message", unicode(message)
-        #try:
-        self.api.update_status(message)
-        #except tweepy.TweepError:
-        #    pass
+        try:
+            self.api.update_status(message)
+        except tweepy.TweepError, e:
+            if 'duplicate' not in str(e):
+                raise
+            print str(e)
 
 
 def _get_local_settings():
