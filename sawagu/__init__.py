@@ -1,22 +1,20 @@
 # -*- coding: utf-8 -*-
+import os
 import feedparser
 import requests
 import tweepy
-
-from sawagu.settings import Settings
+from configobj import ConfigObj
 
 
 def main():
-    settings = Settings()
+    cache = Cache(Settings.CACHE_FILE)
+    shortener = Shortener(Settings.SHORTENER_URL)
+    tweeter = Tweeter(Settings.TWITTER_CONSUMER_KEY,
+            Settings.TWITTER_CONSUMER_SECRET,
+            Settings.TWITTER_ACCESS_TOKEN,
+            Settings.TWITTER_ACCESS_TOKEN_SECRET)
 
-    cache = Cache(settings.CACHE_FILE)
-    shortener = Shortener(settings.SHORTENER_URL)
-    tweeter = Tweeter(settings.TWITTER_CONSUMER_KEY,
-            settings.TWITTER_CONSUMER_KEY_SECRET,
-            settings.TWITTER_ACCESS_TOKEN,
-            settings.TWITTER_ACCESS_TOKEN_SECRET)
-
-    response = requests.get(settings.FEED_URL)
+    response = requests.get(Settings.FEED_URL)
     new_data = response.content
     new_feed = feedparser.parse(new_data)
 
@@ -34,8 +32,7 @@ def main():
                 title=entry.title,
                 link=shortener.shorten(entry.feedburner_origlink),
                 tags=[x.term for x in entry.tags])
-        print "Want to send message", unicode(message)
-#        tweeter.send_tweet(unicode(message))
+        tweeter.send_tweet(unicode(message))
 
     cache.save(new_data)
 
@@ -46,6 +43,9 @@ class Shortener(object):
         self.shortener_url = shortener_url
 
     def shorten(self, url):
+        if not self.shortener_url:
+            return url
+
         data = {'url': url}
         response = requests.post(self.shortener_url, data=data)
         short_url = response.content.strip()
@@ -104,18 +104,46 @@ class Cache(object):
 
 class Tweeter(object):
 
-    def __init__(self, consumer_key, consumer_key_secret,
+    def __init__(self, consumer_key, consumer_secret,
             access_token, access_token_secret):
-        self.auth = tweepy.OAuthHandler(
-                consumer_key, consumer_key_secret)
+        self.auth = tweepy.OAuthHandler(consumer_key, consumer_secret)
         self.auth.set_access_token(access_token, access_token_secret)
         self.api = tweepy.API(self.auth)
 
     def send_tweet(self, message):
+        print "Sending message", unicode(message)
         #try:
         self.api.update_status(message)
         #except tweepy.TweepError:
         #    pass
+
+
+def _get_local_settings():
+    default_location = os.environ.get('HOME', '') + "/.sawagu"
+    location_from_env = os.environ.get('SAWAGU_SETTINGS')
+    
+    if location_from_env and os.path.exists(location_from_env):
+        return ConfigObj(location_from_env)
+
+    elif os.path.exists(default_location):
+        return ConfigObj(default_location)
+
+    else:
+        return ConfigObj()
+
+
+class Settings(object):
+    
+    __config = _get_local_settings()
+
+    CACHE_FILE = __config.get('CACHE_FILE') or '/tmp/sawagu.xml'
+    FEED_URL = __config.get('FEED_URL') or ''
+    SHORTENER_URL = __config.get('SHORTENER_URL') or ''
+    TWITTER_CONSUMER_KEY = __config.get('TWITTER_CONSUMER_KEY') or ''
+    TWITTER_CONSUMER_SECRET = __config.get('TWITTER_CONSUMER_SECRET') or ''
+    TWITTER_ACCESS_TOKEN = __config.get('TWITTER_ACCESS_TOKEN') or ''
+    TWITTER_ACCESS_TOKEN_SECRET = \
+            __config.get('TWITTER_ACCESS_TOKEN_SECRET') or ''
 
 
 if __name__ == '__main__':
