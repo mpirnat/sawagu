@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import os
+import datetime
 import feedparser
 import requests
 import tweepy
@@ -21,8 +22,10 @@ def main():
     last_data = cache.load()
     last_feed = feedparser.parse(last_data)
 
+    now = datetime.datetime.now()
     new_entries = [x for x in new_feed.entries
-            if x.id not in [y.id for y in last_feed.entries]]
+            if x.id not in [y.id for y in last_feed.entries]
+            and (now - x.published_parsed).days <= Settings.MAX_AGE_DAYS]
     print "Got new entries:", len(new_entries)
 
     # tweet the oldest entries first
@@ -123,7 +126,7 @@ class Tweeter(object):
 def _get_local_settings():
     default_location = os.environ.get('HOME', '') + "/.sawagu"
     location_from_env = os.environ.get('SAWAGU_SETTINGS')
-    
+
     if location_from_env and os.path.exists(location_from_env):
         return ConfigObj(location_from_env)
 
@@ -135,11 +138,12 @@ def _get_local_settings():
 
 
 class Settings(object):
-    
+
     __config = _get_local_settings()
 
     CACHE_FILE = __config.get('CACHE_FILE') or '/tmp/sawagu.xml'
     FEED_URL = __config.get('FEED_URL') or ''
+    MAX_AGE_DAYS = __config.get('MAX_AGE_DAYS') or 7
     SHORTENER_URL = __config.get('SHORTENER_URL') or ''
     TWITTER_CONSUMER_KEY = __config.get('TWITTER_CONSUMER_KEY') or ''
     TWITTER_CONSUMER_SECRET = __config.get('TWITTER_CONSUMER_SECRET') or ''
