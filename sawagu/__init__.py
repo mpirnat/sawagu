@@ -25,7 +25,8 @@ def main():
     now = datetime.datetime.now()
     new_entries = [x for x in new_feed.entries
             if x.id not in [y.id for y in last_feed.entries]
-            and (now - x.published_parsed).days <= Settings.MAX_AGE_DAYS]
+            and (now - struct_time_to_datetime(x.published_parsed)).days
+                    <= Settings.MAX_AGE_DAYS]
     print "Got new entries:", len(new_entries)
 
     # tweet the oldest entries first
@@ -38,6 +39,10 @@ def main():
         tweeter.send_tweet(unicode(message))
 
     cache.save(new_data)
+
+
+def struct_time_to_datetime(t):
+    return datetime.datetime(*t[:5] + (min(t[5], 59),))
 
 
 class Shortener(object):
